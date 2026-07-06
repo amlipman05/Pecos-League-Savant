@@ -169,7 +169,7 @@ def apply_filters(df, teams, opps, p_hands, b_hands, bases, outs, innings, count
 
 
 st.title("Pecos League Savant Dashboard")
-st.subtitle("Created by Adam Lipman")
+st.subheader("Created by Adam Lipman")
 
 tab1, tab2 = st.tabs(["Batting Splits", "Pitching Splits"])
 
