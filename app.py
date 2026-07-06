@@ -5,14 +5,13 @@ import ast
 
 st.set_page_config(layout="wide", page_title="Baseball Splits Dashboard")
 
+@st.cache_data
 hide_github_icon = """
 #GithubIcon {
   visibility: hidden;
 }
 """
 st.markdown(hide_github_icon, unsafe_allow_html=True)
-
-@st.cache_data
 def load_data():
     df = pd.read_csv('all_games_data.csv')
     if 'All Counts' in df.columns:
