@@ -301,9 +301,3 @@ with tab2:
                 st.warning("No qualifying pitchers found for these filters.")
         else:
             st.warning("No plays match the selected criteria.")
-hide_github_icon = """
-GithubIcon {
-  visibility: hidden;
-}
-"""
-st.markdown(hide_github_icon, unsafe_allow_html=True)
