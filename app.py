@@ -168,7 +168,8 @@ def apply_filters(df, teams, opps, p_hands, b_hands, bases, outs, innings, count
     return filtered
 
 
-st.title("Baseball Splits Dashboard")
+st.title("Pecos League Savant Dashboard")
+st.subtitle("Created by Adam Lipman")
 
 tab1, tab2 = st.tabs(["Batting Splits", "Pitching Splits"])
 
@@ -184,7 +185,7 @@ all_locs = sorted(df_all_games['Game Location (Hitting)'].dropna().unique().toli
 all_p_locs = sorted(df_all_games['Game Location (Pitching)'].dropna().unique().tolist())
 
 with tab1:
-    st.header("Batting Splits")
+    st.header("Hitting Splits")
     with st.expander("Batting Filters", expanded=True):
         c1, c2, c3, c4 = st.columns(4)
         b_teams = c1.multiselect("Hitting Team", all_hitting_teams, key='b_teams')
