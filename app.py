@@ -1,4 +1,11 @@
 import streamlit as st
+hide_github_icon = """
+    <style>
+    #GithubIcon {visibility: hidden;}
+    .styles_viewerBadge__1yB5_, .viewerBadge_link__1S137, .viewerBadge_text__1JaDK {display: none;}
+    </style>
+"""
+st.markdown(hide_github_icon, unsafe_allow_html=True)
 import pandas as pd
 import numpy as np
 import ast
@@ -301,15 +308,3 @@ with tab2:
                 st.warning("No qualifying pitchers found for these filters.")
         else:
             st.warning("No plays match the selected criteria.")
-st.markdown(
-    """
-    <style>
-    .css-1jc7ptx, .e1ewe7hr3, .viewerBadge_container__1QSob,
-    .styles_viewerBadge__1yB5_, .viewerBadge_link__1S137,
-    .viewerBadge_text__1JaDK {
-        display: none;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
