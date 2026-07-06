@@ -5,6 +5,10 @@ import ast
 
 st.set_page_config(layout="wide", page_title="Pecos Savant")
 
+st.title("Pecos League Savant Dashboard")
+st.subheader("Created by Adam Lipman")
+
+
 @st.cache_data
 
 def load_data():
@@ -167,10 +171,6 @@ def apply_filters(df, teams, opps, p_hands, b_hands, bases, outs, innings, count
             filtered = filtered[filtered[loc_col].isin(game_locs)]
 
     return filtered
-
-
-st.title("Pecos League Savant Dashboard")
-st.subheader("Created by Adam Lipman")
 
 tab1, tab2 = st.tabs(["Batting Splits", "Pitching Splits"])
 
