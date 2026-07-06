@@ -92,77 +92,24 @@ def get_split_stats(df):
         if col not in split_pivot.columns: split_pivot[col] = 0
     return split_pivot[final_cols]
 
-def get_pitching_split_stats(df, df_unfiltered=None):
-    if df_unfiltered is None:
-        df_unfiltered = df_all_games
-    final_cols_template = [
-        'Player Name', 'Team Name', 'ERA', 'Games', 'Games Started', 'Innings Pitched',
-        'Hits Allowed', 'Runs Allowed', 'Earned Runs Allowed', 'Home Runs Allowed',
-        'Walks Allowed', 'Intentional Walks Allowed', 'Strikeouts', 'Hit By Pitches',
-        'Batters Faced', 'WHIP', 'Strikeout Percentage', 'Walk Percentage', 'CSW%', 'K-BB%', 'FPS%', 'Pitches per BF'
-    ]
-    if df.empty: return pd.DataFrame(columns=final_cols_template)
-    pa_df = df[df['Grouped Play Type'] != 'Non-PA Event'].copy()
-    if pa_df.empty: return pd.DataFrame(columns=final_cols_template)
-    runs_df = df.explode('Runs Charged To').dropna(subset=['Runs Charged To'])
-    runs_agg = runs_df.groupby(['Pitching Team', 'Runs Charged To']).size().reset_index(name='Runs_Allowed')
-    runs_agg.rename(columns={'Runs Charged To': 'Pitcher'}, inplace=True)
-    agg_df = df.groupby(['Pitching Team', 'Pitcher']).agg(
-        Outs_Recorded=('Outs on Play', 'sum')
-    ).reset_index()
-    agg_df = pd.merge(agg_df, runs_agg, on=['Pitching Team', 'Pitcher'], how='left').fillna({'Runs_Allowed': 0})
-    games_df = df.groupby(['Pitching Team', 'Pitcher'])['Game File'].nunique().reset_index(name='Games')
-    agg_df = pd.merge(agg_df, games_df, on=['Pitching Team', 'Pitcher'])
-    bf_df = pa_df.groupby(['Pitching Team', 'Pitcher']).apply(
-        lambda x: x[['Game File', 'Inning', 'Plate Appearance']].drop_duplicates().shape[0],
-        include_groups=False
-    ).reset_index(name='Batters Faced')
-    agg_df = pd.merge(agg_df, bf_df, on=['Pitching Team', 'Pitcher'], how='left').fillna({'Batters Faced': 0})
-    first_pitchers = df_unfiltered.sort_values(['Game File', 'Inning', 'Plate Appearance']).groupby(['Game File', 'Pitching Team'])['Pitcher'].first().reset_index()
-    first_pitchers['Is_Starter'] = 1
-    split_games = df[['Game File', 'Pitching Team', 'Pitcher']].drop_duplicates()
-    gs_df = pd.merge(split_games, first_pitchers, on=['Game File', 'Pitching Team', 'Pitcher'], how='inner')
-    gs_counts = gs_df.groupby(['Pitching Team', 'Pitcher'])['Is_Starter'].sum().reset_index(name='Games Started')
-    agg_df = pd.merge(agg_df, gs_counts, on=['Pitching Team', 'Pitcher'], how='left').fillna({'Games Started': 0})
-    split_pivot = pa_df.pivot_table(
-        index=['Pitching Team', 'Pitcher'],
-        columns='Grouped Play Type',
-        aggfunc='size',
-        fill_value=0
-    ).reset_index()
-    split_pivot = pd.merge(split_pivot, agg_df, on=['Pitching Team', 'Pitcher'])
-    expected_cols = ['Single', 'Double', 'Triple', 'Home Run', 'Walk', 'Intentional Walk', 'Hit By Pitch', 'Strikeout', 'Out', 'Fielders Choice', 'Reached on Error', 'Sacrifice Fly', 'Sacrifice Hit']
-    for col in expected_cols:
-        if col not in split_pivot.columns:
-            split_pivot[col] = 0
-    split_pivot.rename(columns={
-        'Pitching Team': 'Team Name', 'Pitcher': 'Player Name',
-        'Home Run': 'Home Runs Allowed', 'Walk': 'Walks Allowed',
-        'Intentional Walk': 'Intentional Walks Allowed', 'Hit By Pitch': 'Hit By Pitches',
-        'Strikeout': 'Strikeouts', 'Runs_Allowed': 'Runs Allowed'
-    }, inplace=True)
-    split_pivot['Innings Pitched'] = (split_pivot['Outs_Recorded'] // 3) + (split_pivot['Outs_Recorded'] % 3) / 10.0
-    split_pivot['Hits Allowed'] = split_pivot['Single'] + split_pivot['Double'] + split_pivot['Triple'] + split_pivot['Home Runs Allowed']
-    split_pivot = split_pivot[(split_pivot['Batters Faced'] > 0) | (split_pivot['Outs_Recorded'] > 0)].copy()
-    if split_pivot.empty: return pd.DataFrame(columns=final_cols_template)
-    math_ip = split_pivot['Outs_Recorded'] / 3.0
-    split_pivot['Earned Runs Allowed'] = split_pivot['Runs Allowed']
-    split_pivot['ERA'] = np.where(math_ip > 0, (split_pivot['Earned Runs Allowed'] * 9) / math_ip, 0.0)
-    split_pivot['WHIP'] = np.where(math_ip > 0, (split_pivot['Hits Allowed'] + split_pivot['Walks Allowed'] + split_pivot['Intentional Walks Allowed']) / math_ip, 0.0)
-    split_pivot['Strikeout Percentage'] = np.where(split_pivot['Batters Faced'] > 0, split_pivot['Strikeouts'] / split_pivot['Batters Faced'], 0.0)
-    split_pivot['Walk Percentage'] = np.where(split_pivot['Batters Faced'] > 0, (split_pivot['Walks Allowed'] + split_pivot['Intentional Walks Allowed']) / split_pivot['Batters Faced'], 0.0)
-    split_pivot['K-BB%'] = split_pivot['Strikeout Percentage'] - split_pivot['Walk Percentage']
-    split_pivot['CSW%'] = split_pivot.apply(lambda row: get_csw(df, row['Team Name'], pitcher=row['Player Name']), axis=1)
-    split_pivot['FPS%'] = split_pivot.apply(lambda row: calculate_first_pitch_strikes(df, row['Team Name'], pitcher=row['Player Name']), axis=1)
+def get_pitching_split_stats(df): # Redefining this function to calculate hitting stats against pitchers
+    temp_df = df.copy()
+    # Temporarily swap 'Hitting Team' and 'Pitching Team', and 'Batter' and 'Pitcher'
+    # so that get_split_stats can calculate batting stats where the 'Batter' is actually the original 'Pitcher'
+    # and 'Hitting Team' is actually the original 'Pitching Team'.
+    temp_df['Hitting Team'] = temp_df['Pitching Team']
+    temp_df['Batter'] = temp_df['Pitcher']
 
-    total_pitches_p_df = pa_df[pa_df['Pitch Sequence'].notna()].copy()
-    total_pitches_p_df['Pitches'] = total_pitches_p_df['Pitch Sequence'].apply(lambda x: len(x) if x != 'N/A' else 0)
-    total_pitches_per_pitcher = total_pitches_p_df.groupby(['Pitching Team', 'Pitcher'])['Pitches'].sum().reset_index()
-    total_pitches_per_pitcher.rename(columns={'Pitching Team': 'Team Name', 'Pitcher': 'Player Name'}, inplace=True)
-    split_pivot = pd.merge(split_pivot, total_pitches_per_pitcher, on=['Team Name', 'Player Name'], how='left').fillna({'Pitches': 0})
-    split_pivot['Pitches per BF'] = np.where(split_pivot['Batters Faced'] > 0, split_pivot['Pitches'] / split_pivot['Batters Faced'], 0.0)
+    # Call get_split_stats, which calculates batting statistics
+    hitting_stats_against_pitchers = get_split_stats(temp_df)
 
-    return split_pivot[final_cols_template]
+    # Rename columns to reflect that these are stats AGAINST a pitcher
+    if not hitting_stats_against_pitchers.empty:
+        hitting_stats_against_pitchers.rename(columns={
+            'Team': 'Pitching Team',
+            'Player': 'Pitcher'
+        }, inplace=True)
+    return hitting_stats_against_pitchers
 
 def apply_filters(df, teams, opps, p_hands, b_hands, bases, outs, innings, counts, game_locs, start_date, end_date, team_col, opp_col):
     filtered = df.copy()
@@ -299,10 +246,10 @@ with tab2:
         p_end_date = c11.date_input("End Date", value=None, key='p_end')
 
         c12, c13, c14, c15 = st.columns(4)
-        p_stat_columns = ['Games', 'Games Started', 'Innings Pitched', 'Hits Allowed', 'Runs Allowed', 'Earned Runs Allowed', 'Home Runs Allowed', 'Walks Allowed', 'Intentional Walks Allowed', 'Strikeouts', 'Hit By Pitches', 'Batters Faced', 'ERA', 'WHIP', 'Strikeout Percentage', 'Walk Percentage', 'CSW%', 'K-BB%', 'FPS%', 'Pitches per BF']
-        p_sort_col = c12.selectbox("Sort By", p_stat_columns, index=p_stat_columns.index('ERA'), key='p_sort_col')
+        p_stat_columns = ['G', 'PA', 'AB', 'R', 'H', '1B', '2B', '3B', 'HR', 'RBI', 'AVG', 'OBP', 'SLG', 'OPS', 'K%', 'BB%', 'P/PA']
+        p_sort_col = c12.selectbox("Sort By", p_stat_columns, index=p_stat_columns.index('OPS'), key='p_sort_col')
         p_sort_order = c13.selectbox("Order", ['Descending', 'Ascending'], index=1, key='p_sort_order')
-        p_qual_col = c14.selectbox("Qualifier Col", ['None'] + p_stat_columns, index=p_stat_columns.index('Batters Faced') + 1, key='p_qual_col') # Default Batters Faced
+        p_qual_col = c14.selectbox("Qualifier Col", ['None'] + p_stat_columns, index=p_stat_columns.index('G') + 1, key='p_qual_col') # Default Batters Faced
         p_qual_val = c15.number_input("Qualifier Min Val", value=0, key='p_qual_val')
 
     if st.button("Calculate Pitching Stats", type="primary", key="calc_pitching"):
@@ -314,7 +261,40 @@ with tab2:
                 if p_qual_col != 'None':
                     p_stats = p_stats[p_stats[p_qual_col] >= p_qual_val]
                 p_stats = p_stats.sort_values(p_sort_col, ascending=(p_sort_order == 'Ascending'))
-                st.dataframe(p_stats.style.format({'ERA': '{:.2f}', 'Innings Pitched': '{:.1f}', 'WHIP': '{:.2f}', 'Strikeout Percentage': '{:.1%}', 'Walk Percentage': '{:.1%}', 'CSW%': '{:.1%}', 'K-BB%': '{:.1%}', 'FPS%': '{:.1%}', 'Pitches per BF': '{:.2f}'}), use_container_width=True)
+
+                # Add total row for pitching splits (now hitting stats against pitchers)
+                if not p_stats.empty:
+                    total_pa = p_stats['PA'].sum()
+                    total_ab = p_stats['AB'].sum()
+                    total_row = pd.DataFrame([{ # Changed 'Player' to 'Pitcher', 'Team' to 'Pitching Team' for consistency
+                        'Pitcher': 'TOTAL',
+                        'Pitching Team': 'Combined',
+                        'G': p_stats['G'].max(), # Assuming G represents max games any pitcher appeared in
+                        'PA': total_pa,
+                        'AB': total_ab,
+                        'R': p_stats['R'].sum(),
+                        'H': p_stats['H'].sum(),
+                        '1B': p_stats['1B'].sum(),
+                        '2B': p_stats['2B'].sum(),
+                        '3B': p_stats['3B'].sum(),
+                        'HR': p_stats['HR'].sum(),
+                        'RBI': p_stats['RBI'].sum(),
+                        'BB': p_stats['BB'].sum(),
+                        'SO': p_stats['SO'].sum(),
+                        'HBP': p_stats['HBP'].sum(),
+                        'AVG': p_stats['H'].sum() / total_ab if total_ab > 0 else 0,
+                        'SLG': (p_stats['1B'].sum() + 2*p_stats['2B'].sum() + 3*p_stats['3B'].sum() + 4*p_stats['HR'].sum()) / total_ab if total_ab > 0 else 0,
+                        'OBP': (p_stats['H'].sum() + p_stats['BB'].sum() + p_stats['HBP'].sum()) / total_pa if total_pa > 0 else 0,
+                        'K%': (p_stats['SO'].sum()) / total_pa if total_pa > 0 else 0,
+                        'BB%': (p_stats['BB'].sum()) / total_pa if total_pa > 0 else 0,
+                        'CSW%': (p_stats['CSW%'] * p_stats['PA']).sum() / total_pa if total_pa > 0 else 0,
+                        'FPS%': (p_stats['FPS%'] * p_stats['PA']).sum() / total_pa if total_pa > 0 else 0,
+                        'P/PA': (p_stats['P/PA'] * p_stats['PA']).sum() / total_pa if total_pa > 0 else 0
+                    }])
+                    total_row['OPS'] = total_row['OBP'] + total_row['SLG']
+                    p_stats = pd.concat([p_stats, total_row], ignore_index=True)
+
+                st.dataframe(p_stats.style.format({'AVG': '{:.3f}', 'OBP': '{:.3f}', 'SLG': '{:.3f}', 'OPS': '{:.3f}', 'BABIP': '{:.3f}', 'K%': '{:.1%}', 'BB%': '{:.1%}', 'CSW%': '{:.1%}', 'FPS%': '{:.1%}', 'P/PA': '{:.2f}'}), use_container_width=True)
             else:
                 st.warning("No qualifying pitchers found for these filters.")
         else:
