@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import ast
 
-st.set_page_config(layout="wide", page_title="Pecos Savant")
+st.set_page_config(layout="wide", page_title="Pecos League Stats")
 
 @st.cache_data
 def load_data():
@@ -174,7 +174,7 @@ def apply_filters(df, teams, opps, p_hands, b_hands, bases, outs, innings, count
 
     return filtered
 
-st.title("Pecos League Savant Dashboard")
+st.title("Pecos League Stat Dashboard")
 st.subheader("Created by Adam Lipman")
 
 tab1, tab2 = st.tabs(["Batting Splits", "Pitching Splits"])
